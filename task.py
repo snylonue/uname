@@ -18,7 +18,7 @@ class Task(object):
 		self.priority=priority
 		self.amount=[0,amount]
 		self.tags=tags
-		self.tid=tid or self.__get_tid()
+		self.tid=self.add_tid(tid)
 	def __del__(self):
 		self.tids.pop(self.tid)
 	def __str__(self):
@@ -40,48 +40,93 @@ class Task(object):
 		self.tags|=new_tags
 	def delete_tag(self,dels=set()):
 		self.tags-=dels
+	'''
 	def __get_tid(self,tid=hashlib.md5(''.join(random.choices(LETTERS,k=64)).encode('utf-8')).hexdigest()):
 		#随机生成64位字符串并求md5
 		while self.tids[tid]:
 			tid=hashlib.md5(''.join(random.choices(LETTERS,k=64)).encode('utf-8')).hexdigest()
 		self.tids[tid]=True
 		return tid
+	'''
+	@classmethod
+	def add_tid(cls,tid=None):
+		#使用自定义tid或随机生成64位字符串并求md5
+		tid=tid or hashlib.md5(''.join(random.choices(LETTERS,k=64)).encode('utf-8')).hexdigest()
+		#检查tid是否被使用
+		while cls.tids[tid]:
+			tid=hashlib.md5(''.join(random.choices(LETTERS,k=64)).encode('utf-8')).hexdigest()
+		cls.tids[tid]=True
+		return tid
+	@classmethod
+	def del_tid(cls,tid):
+		if not cls.tids[tid]:
+			raise ValueError(f'tid {tid} is not used')
+		cls.tids[tid]=False
+	def expt(self):
+		return json.dumps(self,default=self.toJson)
+	@classmethod
+	def impt(cls,jsonObj):
+		return json.loads(jsonObj,object_hook=cls.fromJson)
+	@staticmethod
+	def toJson(obj):
+		if isinstance(obj,Task):
+			return {
+			'name':obj.name,
+			'create_time':obj.create_time,
+			'finish_time':obj.finish_time,
+			'priority':obj.priority,
+			'amount':obj.amount,
+			'tags':obj.tags,
+			'tid':obj.tid
+			}
+		if isinstance(obj,datetime):
+			return obj.strftime('%Y-%m-%d %H:%M:%S')
+		if isinstance(obj,set):
+			return list(obj)
+	@staticmethod
+	def fromJson(d):
+		return Task(
+			name=d['name'],
+			create_time=datetime.strptime(d['create_time'],'%Y-%m-%d %H:%M:%S'),
+			finish_time=datetime.strptime(d['finish_time'],'%Y-%m-%d %H:%M:%S'),
+			priority=d['priority'],
+			amount=d['amount'],
+			tags=set(d['tags']),
+			tid=d['tid']
+			)
 	__repr__=__str__
 class Tasks(object):
 	def __init__(self):
-		self.tasks=self.recovery()
-	def recovery(self):
+		self.tasks={}
+		self.__recovery()
+	def __recovery(self):
 		try:
 			rec_files=os.listdir('data/tasks')
 		except OSError as e:
 			os.mkdir('data/tasks')
-			return {}
 		else:
 			if rec_files:
-				res={}
+				print(rec_files)
 				for x in rec_files:
-					with open(f'data/tasks/{x}','rb') as f:
-						task=pickle.load(f) #计划使用json序列化
-						res[task.tid]=task
-						task.tids[task.tid]=True
-						'''
-						jsonTask=f.read()
-						task=json.load(jsonTask,object_hook=lambda x:Task(x['name'],x['finish_time'],x['priority'],x['amount'],x['tags'],x['tid'],x['create_time']))
-					'''
-					#os.remove(f'data/tasks/{x}')
-				return res
-			else:
-				return {}
-	def saveTask(self,tid):
-		for k,v in self.tasks.items():
-			with open(f'data/tasks/{k}','wb') as f:
-				f.write(pickle.dumps(v))
-
-		'''
-		jsonTask=json.dumps(self.tasks[tid],default=toJson)
-		with open(f'data/tasks/{tid}','w') as f:
-			f.write(jsonTask)
-			'''
+					with open(f'data/tasks/{x}','r') as f:
+						#task=pickle.load(f)
+						task=Task.impt(f.read())
+						try:
+							self.addTask(task)
+						except ValueError as e:		
+							task.tid=task.add_tid() #重新分配tid
+							self.addTask(task)
+	def save(self):
+		for _,v in self.tasks.items():
+			self.saveTask(v)
+	@classmethod
+	def saveTask(cls,task):
+		with open(f'data/tasks/{task.tid}','w') as f:
+			f.write(task.expt())
+	def addTask(self,task):
+		if self.tasks.get(task.tid):
+			raise ValueError(f'task {tid} is exists')
+		self.tasks[task.tid]=task
 	def delTask(self,tid):
 		self.tasks.pop(tid)
 		try:
@@ -92,28 +137,3 @@ class Tasks(object):
 		task=Task(name,finish_time,priority,amount,tags)
 		self.tasks[task.tid]=task
 		self.saveTask(task.tid)
-'''
-def toJson(obj):
-	if isinstance(obj,date):
-		return {'year':obj.year,
-				'month':obj.month,
-				'day':obj.day,
-				'hour':obj.hour,
-				'minute':obj.minute,
-				'second':obj.second,
-				'microsecond':obj.microsecond
-			}
-	elif isinstance(obj,Task):
-		return {'name':obj.name,
-				'create_time':obj.create_time,
-				'finish_time':obj.finish_time,
-				'priority':obj.priority,
-				'amount':obj.amount,
-				'tags':obj.tags,
-				'tid':obj.tid
-		}
-	elif isinstance(obj,set):
-		pass
-	else:
-		return obj.__dict__
-'''
