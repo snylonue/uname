@@ -5,15 +5,16 @@ import hashlib
 import random
 import json
 import os
-from datetime import datetime,date
-from collections import defaultdict
+from datetime import datetime,date,timedelta
+from collections import defaultdict,namedtuple
 from array import array
 
 LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+Ep=namedtuple('Ep',['name','eptype','status','length','progress'])
 
 #需要更完善的错误处理
 class BasicTask(object):
-	tids=defaultdict(lambda:False) #
+	tids=defaultdict(lambda:False)
 	def __init__(self,name,priority,amount,tid):
 		self.name=name
 		self.priority=priority
@@ -21,11 +22,11 @@ class BasicTask(object):
 		self.tid=self.addTid(tid)
 	def __del__(self):
 		self.tids.pop(self.tid)
-	def changeName(self,new_name):
+	def updateName(self,new_name):
 		self.name=new_name
-	def changePriority(self,new_priority):
+	def updatePriority(self,new_priority):
 		self.priority=new_priority
-	def changeAmount(self,new_amount):
+	def updateAmount(self,new_amount):
 		self.amount[1]=new_amount
 	def updateProgess(self,progress):
 		if progress>self.amount[1]:
@@ -34,11 +35,11 @@ class BasicTask(object):
 			self.amount[0]=progress
 	@classmethod
 	def addTid(cls,tid=None):
-		#使用自定义tid或随机生成64位字符串并求md5
-		tid=tid or hashlib.md5(''.join(random.choices(LETTERS,k=64)).encode('utf-8')).hexdigest()
+		#使用自定义tid或随机生成64位字符串并求hash
+		tid=tid or hash(''.join(random.choices(LETTERS,k=64)))
 		#检查tid是否被使用
 		while cls.tids[tid]:
-			tid=hashlib.md5(''.join(random.choices(LETTERS,k=64)).encode('utf-8')).hexdigest()
+			tid=hash(''.join(random.choices(LETTERS,k=64)).encode('utf-8'))
 		cls.tids[tid]=True
 		return tid
 	@classmethod
@@ -61,7 +62,7 @@ class BasicTask(object):
 			'amount':obj.amount,
 			}
 		else:
-			return notTasktoJson(obj)
+			return globalToJson(obj)
 	@classmethod
 	def fromJson(cls,d):
 		return cls(
@@ -70,62 +71,32 @@ class BasicTask(object):
 			priority=d['priority'],
 			amount=d['amount']
 			)
-class AnimeChlidTask(BasicTask):
-	def __init__(self,name='',type=0,priority=0,amount=(0,1),tid=None):
-		super().__init__(name=name,priority=priority,amount=amount,tid=tid)
-	def impt(self):
-		pass
-	def expt(self):
-		pass
+class TimeLength(object):
+	def __init__(self,hours=0,minutes=0,seconds=0):
+		self.hours=hours
+		self.minutes=minutes
+		self.seconds=seconds
+		self.simple()
+	def __add__(self,other):
+		return TimeLength(self.hours+other.hours,self.minutes+other.minutes,self.seconds+other.seconds)
+	def simple(self):
+		if self.seconds>=60:
+			self.minutes+=self.seconds//60
+			self.seconds%=60
+		if self.minutes>=60:
+			self.hours+=self.minutes//60
+			self.minutes%=60
+class Eps(BasicTask):
+	def __init__(self,eps):
+		self.eps={number+1:ep for number in range(len(eps)) for ep in eps}
+
 class Task(BasicTask):
-	def __init__(self,name='',finish_time=datetime(2199,12,31),priority=0,amount=(0,1),tags=set(),tid=None,create_time=datetime.now()):
-		#创建时不应传入tid,create_time
-		super().__init__(name=name,priority=priority,amount=amount,tid=tid)
-		self.create_time=create_time
-		self.finish_time=finish_time
-		self.tags=tags
-	def __str__(self):
-		return f'{self.name} {self.create_time} {self.finish_time} {self.priority} {self.amount} {self.tags} {self.tid}'
-	def changeFinishTime(self,new_finish_time):
-		self.finish_time=new_finish_time
-	def addTag(self,new_tags=set()):
-		self.tags|=new_tags
-	def deleteTag(self,dels=set()):
-		self.tags-=dels
-	@staticmethod
-	def toJson(obj):
-		if isinstance(obj,Task):
-			return {
-			'name':obj.name,
-			'create_time':obj.create_time,
-			'finish_time':obj.finish_time,
-			'priority':obj.priority,
-			'amount':obj.amount,
-			'tags':obj.tags,
-			'tid':obj.tid
-			}
-		else:
-			return notTasktoJson(obj)
-	@classmethod
-	def fromJson(cls,d):
-		return cls(
-			name=d['name'],
-			create_time=datetime.strptime(d['create_time'],'%Y-%m-%d %H:%M:%S'),
-			finish_time=datetime.strptime(d['finish_time'],'%Y-%m-%d %H:%M:%S'),
-			priority=d['priority'],
-			amount=d['amount']
-			tags=set(d['tags']),
-			tid=d['tid']
-			)
-	__repr__=__str__
-class AnimeTask(BasicTask):
+class Anime(BasicTask):
 	status_dict={}
-	def __init__(self,name='',priority=0,amount=(0,1),status=0,eps={}tags=set(),tid=None,create_time=datetime.now()):
+	def __init__(self,name='',priority=0,amount=(0,1),eps={},tags=set(),tid=None,create_time=datetime.now()):
 		super().__init__(name=name,priority=priority,amount=amount,tid=tid)
 		self.create_time=create_time
-		self.status=status
 		self.eps=eps
-	def addEp(self):
 	def impt(self):pass
 	def expt(self):pass
 class Tasks(object):
@@ -174,7 +145,7 @@ class Tasks(object):
 		self.tasks[task.tid]=task
 		self.saveTask(task.tid)
 
-def notTasktoJson(obj):
+def globalToJson(obj):
 	if isinstance(obj,datetime):
 		return obj.strftime('%Y-%m-%d %H:%M:%S')
 	if isinstance(obj,set):
