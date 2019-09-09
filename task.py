@@ -10,7 +10,7 @@ from array import array
 
 LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
-class BasicTask(object): #__init__(self,name,priority,amount)
+class BaseTask(object): #__init__(self,name,priority,amount)
 	tids=defaultdict(lambda:False)
 	def __init__(self,name,priority,amount,tid,create_time):
 		self.name=name
@@ -49,18 +49,7 @@ class BasicTask(object): #__init__(self,name,priority,amount)
 			raise ValueError(f'tid {tid} is not exist')
 		cls.tids.pop(tid)
 	def expt(self):
-		return json.dumps(self,default=self.toJson)
-	@staticmethod
-	def toJson(obj):
-		if isinstance(obj,BasicTask):
-			return {
-			'name':obj.name,
-			'create_time':obj.create_time,
-			'priority':obj.priority,
-			'amount':obj.amount,
-			}
-		else:
-			return globalToJson(obj)
+		return json.dumps(self,default=defaultJson.getJson)
 	@classmethod
 	def fromJson(cls,jsonObj):
 		return json.loads(jsonObj,object_hook=lambda d:cls(
@@ -78,14 +67,18 @@ class TimeLength(object):
 	def __add__(self,other):
 		return TimeLength(self.hours+other.hours,self.minutes+other.minutes,self.seconds+other.seconds)
 	def __str__(self):
-		res=''
 		if self.hours:
-			res.join(f'{self.hours}:{self.minutes}:{self.seconds}')
+			res=''.join(f'{self.hours}:{self.minutes}:{self.seconds}')
 		elif self.minutes:
-			res.join(f'{self.minutes}:{self.seconds}')
+			res=''.join(f'{self.minutes}:{self.seconds}')
 		else:
-			res.join(str(self.seconds))
+			res=''.join(str(self.seconds))
 		return res
+	def strftime(self):
+		return f'{self.hours}:{self.minutes}:{self.seconds}'
+	@classmethod
+	def strptime(cls,strtime):
+		return cls(*[int(i) for i in strtime.split(':')])
 	def simple(self):
 		if self.seconds>=60:
 			self.minutes+=self.seconds//60
@@ -96,10 +89,9 @@ class TimeLength(object):
 	__repr__=__str__
 class Ep(object):
 	status_dict={0:'wish',1:'watched',2:'watching',3:'hold',4:'dropped'}
-	def __init__(self,number='1',name='',eptype='default',status=1,length=TimeLength(minutes=23,seconds=40)):
+	def __init__(self,number:str,name='',status=1,length=TimeLength(minutes=23,seconds=40)):
 		self.number=number
 		self.name=name
-		self.type=eptype
 		self.status=status
 		self.length=length
 	def __bool__(self):
@@ -121,7 +113,7 @@ class Eps(object):
 			self.eps.pop(other.number)
 		except KeyError:
 			raise ValueError(f'Ep {other.number} is not exist')
-class Anime(BasicTask):
+class Anime(BaseTask):
 	def __init__(self,name='',priority=0,eps=Eps((Ep())),tid=None,create_time=datetime.now()):
 		super().__init__(name=name,priority=priority,amount=len(eps),create_time=create_time,tid=tid)
 		self.eps=eps
@@ -159,11 +151,50 @@ class Anime(BasicTask):
 			amount=d['amount']
 			eps=d['eps']
 			))
-
-def globalToJson(obj):
-	if isinstance(obj,datetime):
+class defaultJson(object):
+	@classmethod
+	def getJson(cls,obj):
+		hooks={BaseTask:cls.fromBaseTask,TimeLength:cls.fromTimeLength,Ep:cls.fromEp,
+		   Eps:cls.fromEps,Anime:cls.fromAnime,datetime:cls.fromDatetime,array:cls.fromArray,
+		   set:cls.fromSet}
+		return hooks[obj.__class__](obj)
+	@staticmethod
+	def fromTimeLength(obj):
+		return obj.strftime
+	@staticmethod
+	def fromEp(obj):
+		return {
+			'number':obj.number,
+			'name':obj.name,
+			'status':obj.status,
+			'length':obj.length
+		}
+	@staticmethod
+	def fromEps(obj):
+		return [obj.eps]
+	@staticmethod
+	def fromBaseTask(obj):
+		return {
+			'name':obj.name,
+			'create_time':obj.create_time,
+			'priority':obj.priority,
+			'amount':obj.amount,
+			}
+	@staticmethod
+	def fromAnime(obj):
+		return {
+			'name':obj.name,
+			'create_time':obj.create_time,
+			'priority':obj.priority,
+			'amount':obj.amount,
+			'eps':obj.eps
+			}
+	@staticmethod
+	def fromDatetime(obj):
 		return obj.strftime('%Y-%m-%d %H:%M:%S')
-	if isinstance(obj,set):
+	@staticmethod
+	def fromSet(obj):
 		return list(obj)
-	if isinstance(obj,array):
-		return list(array)
+	@staticmethod
+	def fromArray(obj):
+		return list(obj)
