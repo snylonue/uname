@@ -113,6 +113,7 @@ class Eps(object):
 			self.eps.pop(other.number)
 		except KeyError:
 			raise ValueError(f'Ep {other.number} is not exist')
+	def fromJson(self,jsonObj):pass
 class Anime(BaseTask):
 	def __init__(self,name='',priority=0,eps=Eps((Ep())),tid=None,create_time=datetime.now()):
 		super().__init__(name=name,priority=priority,amount=len(eps),create_time=create_time,tid=tid)
@@ -127,21 +128,6 @@ class Anime(BaseTask):
 			self.eps-=ep
 		except ValueError:
 			raise
-	'''
-	@staticmethod
-	def toJson(obj):
-		if isinstance(obj,Anime):
-			return {
-			'name':obj.name,
-			'priority':obj.priority,
-			'amount':obj.amount,
-			'eps':obj.eps,
-			'create_time':obj.create_time,
-			'tid':obj.tid,
-			}
-		elif isinstance(obj,Eps):
-			return obj.eps
-	'''
 	@classmethod
 	def fromJson(cls,jsonObj):
 		return json.loads(jsonObj,object_hook=lambda d:cls(
@@ -152,12 +138,16 @@ class Anime(BaseTask):
 			eps=d['eps']
 			))
 class defaultJson(object):
+	toList=lambda obj:list(obj)
 	@classmethod
 	def getJson(cls,obj):
-		hooks={BaseTask:cls.fromBaseTask,TimeLength:cls.fromTimeLength,Ep:cls.fromEp,
-		   Eps:cls.fromEps,Anime:cls.fromAnime,datetime:cls.fromDatetime,array:cls.fromArray,
-		   set:cls.fromSet}
-		return hooks[obj.__class__](obj)
+		hooks={BaseTask:cls.fromBaseTask,TimeLength:cls.fromTimeLength,
+		   Ep:cls.fromEp,Eps:cls.fromEps,Anime:cls.fromAnime,
+		   datetime:lambda obj:obj.strftime('%Y-%m-%d %H:%M:%S'),array:cls.toList,set:cls.toList}
+		try:
+			return hooks[obj.__class__](obj)
+		except KeyError:
+			raise
 	@staticmethod
 	def fromTimeLength(obj):
 		return obj.strftime
