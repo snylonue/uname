@@ -58,6 +58,57 @@ class BaseTask(object): #__init__(self,name,priority,amount)
 			priority=d['priority'],
 			amount=d['amount']
 			))
+class defaultJson(object):
+	toList=lambda obj:list(obj)
+	@classmethod
+	def getJson(cls,obj):
+		hooks={BaseTask:cls.fromBaseTask,TimeLength:cls.fromTimeLength,
+		   Ep:cls.fromEp,Eps:cls.fromEps,Anime:cls.fromAnime,
+		   datetime:lambda obj:obj.strftime('%Y-%m-%d %H:%M:%S'),array:cls.toList,set:cls.toList}
+		try:
+			return hooks[obj.__class__](obj)
+		except KeyError:
+			raise
+	@staticmethod
+	def fromTimeLength(obj):
+		return obj.strftime
+	@staticmethod
+	def fromEp(obj):
+		return {
+			'number':obj.number,
+			'name':obj.name,
+			'status':obj.status,
+			'length':obj.length
+		}
+	@staticmethod
+	def fromEps(obj):
+		return [obj.eps]
+	@staticmethod
+	def fromBaseTask(obj):
+		return {
+			'name':obj.name,
+			'create_time':obj.create_time,
+			'priority':obj.priority,
+			'amount':obj.amount,
+			}
+	@staticmethod
+	def fromAnime(obj):
+		return {
+			'name':obj.name,
+			'create_time':obj.create_time,
+			'priority':obj.priority,
+			'amount':obj.amount,
+			'eps':obj.eps
+			}
+	@staticmethod
+	def fromDatetime(obj):
+		return obj.strftime('%Y-%m-%d %H:%M:%S')
+	@staticmethod
+	def fromSet(obj):
+		return list(obj)
+	@staticmethod
+	def fromArray(obj):
+		return list(obj)
 class TimeLength(object):
 	def __init__(self,hours=0,minutes=0,seconds=0):
 		self.hours=hours
@@ -137,54 +188,3 @@ class Anime(BaseTask):
 			amount=d['amount']
 			eps=d['eps']
 			))
-class defaultJson(object):
-	toList=lambda obj:list(obj)
-	@classmethod
-	def getJson(cls,obj):
-		hooks={BaseTask:cls.fromBaseTask,TimeLength:cls.fromTimeLength,
-		   Ep:cls.fromEp,Eps:cls.fromEps,Anime:cls.fromAnime,
-		   datetime:lambda obj:obj.strftime('%Y-%m-%d %H:%M:%S'),array:cls.toList,set:cls.toList}
-		try:
-			return hooks[obj.__class__](obj)
-		except KeyError:
-			raise
-	@staticmethod
-	def fromTimeLength(obj):
-		return obj.strftime
-	@staticmethod
-	def fromEp(obj):
-		return {
-			'number':obj.number,
-			'name':obj.name,
-			'status':obj.status,
-			'length':obj.length
-		}
-	@staticmethod
-	def fromEps(obj):
-		return [obj.eps]
-	@staticmethod
-	def fromBaseTask(obj):
-		return {
-			'name':obj.name,
-			'create_time':obj.create_time,
-			'priority':obj.priority,
-			'amount':obj.amount,
-			}
-	@staticmethod
-	def fromAnime(obj):
-		return {
-			'name':obj.name,
-			'create_time':obj.create_time,
-			'priority':obj.priority,
-			'amount':obj.amount,
-			'eps':obj.eps
-			}
-	@staticmethod
-	def fromDatetime(obj):
-		return obj.strftime('%Y-%m-%d %H:%M:%S')
-	@staticmethod
-	def fromSet(obj):
-		return list(obj)
-	@staticmethod
-	def fromArray(obj):
-		return list(obj)
