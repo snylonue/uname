@@ -59,6 +59,20 @@ class BaseTask(object):
 			priority=d['priority'],
 			amount=d['amount']
 			))
+class BaseTasks(object):
+	def __init__(self,rec_path='data/rec'):
+		self.tasks={}
+		self.rec(rec_path)
+	def rec(self,rec_path):
+		path=pathlib.Path(rec_path).mkdir(exist_ok=True)
+		for x in path.iterdir():
+			with open(x,'r') as f:
+				try:
+					task=json.loads(f.read(),object_hook=lambda:None)
+				except (IOError,json.decoder.JSONDecodeError):
+					raise
+				else:
+					self.tasks[task.tid]=task
 class defaultJson(object):
 	toList=lambda obj:list(obj)
 	@classmethod
