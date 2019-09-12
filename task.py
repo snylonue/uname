@@ -4,14 +4,15 @@
 import random
 import json
 import os
+import pathlib
 from datetime import datetime,date
 from collections import defaultdict
 from array import array
 
 LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
-class BaseTask(object): #__init__(self,name,priority,amount)
-	tids=defaultdict(lambda:False)
+class BaseTask(object):
+	tids=set()
 	def __init__(self,name,priority,amount,tid,create_time):
 		self.name=name
 		self.priority=priority
@@ -39,15 +40,15 @@ class BaseTask(object): #__init__(self,name,priority,amount)
 		#使用自定义tid或随机生成64位字符串并求hash
 		tid=tid or hash(''.join(random.choices(LETTERS,k=64)))
 		#检查tid是否被使用
-		while cls.tids[tid]:
-			tid=hash(''.join(random.choices(LETTERS,k=64)).encode('utf-8'))
-		cls.tids[tid]=True
+		while tid not in cls.tids:
+			tid=hash(''.join(random.choices(LETTERS,k=64)))
+		cls.tids.add(tid)
 		return tid
 	@classmethod
 	def delTid(cls,tid):
-		if not cls.tids[tid]:
+		if tid not in cls.tids:
 			raise ValueError(f'tid {tid} is not exist')
-		cls.tids.pop(tid)
+		cls.tids.remove(tid)
 	def expt(self):
 		return json.dumps(self,default=defaultJson.getJson)
 	@classmethod
