@@ -125,37 +125,64 @@ class defaultJson(object):
 	def fromArray(obj):
 		return list(obj)
 class TimeLength(object):
-	def __init__(self,hours=0,minutes=0,seconds=0):
-		self.hours=hours
-		self.minutes=minutes
-		self.seconds=seconds
+	def __init__(self,hour=0,minute=0,second=0):
+		self.hour=hour
+		self.minute=minute
+		self.second=second
 		self.simple()
-	def __add__(self,other):
-		return TimeLength(self.hours+other.hours,self.minutes+other.minutes,self.seconds+other.seconds)
+	def __add__(self,other):#add a datatime object is allowed but not recommended
+		try:
+			new_hour=self.hour+other.hour
+			new_minute=self.minute+other.minute
+			new_second=self.second+other.second
+		except AttributeError:
+			return NotImplemented
+		return TimeLength(new_hour,new_minute,new_second)
+	def __sub__(self,other):
+		try:
+			new_hour=self.hour+other.hour
+			new_minute=self.minute+other.minute
+			new_second=self.second+other.second
+		except AttributeError:
+			return NotImplemented
+		return TimeLength(new_hour,new_minute,new_second)
+	def __iadd__(self,other):
+		try:
+			self.hour=other.hour
+			self.minute=other.minute
+			self.second=other.second
+		except ArithmeticError:
+			return NotImplemented
+	def __isub__(self,other):
+		try:
+			self.hour=other.hour
+			self.minute=other.minute
+			self.second=other.second
+		except ArithmeticError:
+			return NotImplemented
 	def __str__(self):
-		if self.hours:
-			res=''.join(f'{self.hours}:{self.minutes}:{self.seconds}')
-		elif self.minutes:
-			res=''.join(f'{self.minutes}:{self.seconds}')
+		if self.hour:
+			return ''.join(f'{self.hour}:{self.minute}:{self.second}')
+		elif self.minute:
+			return ''.join(f'{self.minute}:{self.second}')
 		else:
-			res=''.join(str(self.seconds))
-		return res
+			return ''.join(str(self.second))
 	def strftime(self):
-		return f'{self.hours}:{self.minutes}:{self.seconds}'
+		return f'{self.hour}:{self.minute}:{self.second}'
 	@classmethod
 	def strptime(cls,strtime):
 		return cls(*[int(i) for i in strtime.split(':')])
 	def simple(self):
-		if self.seconds>=60:
-			self.minutes+=self.seconds//60
-			self.seconds%=60
-		if self.minutes>=60:
-			self.hours+=self.minutes//60
-			self.minutes%=60
+		if self.second>=60:
+			self.minute+=self.second//60
+			self.second%=60
+		if self.minute>=60:
+			self.hour+=self.minute//60
+			self.minute%=60
 	__repr__=__str__
 class Ep(object):
 	status_dict={0:'wish',1:'watched',2:'watching',3:'hold',4:'dropped'}
-	def __init__(self,number:str,name='',status=1,length=TimeLength(minutes=23,seconds=40)):
+	def __init__(self,number:str,name='',status=1,length=TimeLength(minute=23,second=40)):
 		self.number=number
 		self.name=name
 		self.status=status
