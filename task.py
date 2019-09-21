@@ -135,8 +135,8 @@ class defaultJson(object):
 			'name':obj.name,
 			'create_time':obj.create_time,
 			'priority':obj.priority,
-			'amount':obj.amount,
-			'eps':obj.eps
+			'eps':obj.eps,
+			'tid':obj.tid
 			}
 	@staticmethod
 	def fromDatetime(obj):
@@ -251,11 +251,14 @@ class Eps(object):
 	@classmethod
 	def fromJson(cls,jsonObj):
 		d=json.loads(jsonObj)
+		return cls.fromDict(d)
+	@classmethod
+	def fromDict(cls,d):
 		return cls([Ep(**i) for i in d['eps']])
 	__repr__=__str__
 class Anime(BaseTask):
 	def __init__(self,name='',priority=0,eps=Eps([Ep()]),tid=None,create_time=datetime.now()):
-		super().__init__(name=name,priority=priority,amount=len(eps),create_time=create_time,tid=tid)
+		super().__init__(name=name,priority=priority,progress=len(eps),create_time=create_time,tid=tid)
 		self.eps=eps
 	def addEp(self,new_ep):
 		self.eps.add(new_ep)
@@ -265,10 +268,7 @@ class Anime(BaseTask):
 		self.updateAmount(len(self.eps))
 	@classmethod
 	def fromJson(cls,jsonObj):
-		return json.loads(jsonObj,object_hook=lambda d:cls(
-			name=d['name'],
-			create_time=d['create_time'],
-			priority=d['priority'],
-			amount=d['amount'],
-			eps=d['eps']
-			))
+		d=json.loads(jsonObj)
+		eps=Eps.fromDict(d['eps'])
+		d.pop('eps')
+		return cls(**d,eps=eps)
