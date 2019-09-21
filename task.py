@@ -10,15 +10,19 @@ from collections import defaultdict
 from array import array
 
 LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-errors=[]
 
 class BaseTask(object):
 	tids=set()
-	def __init__(self,name,priority,amount,tid,create_time):
+	def __init__(self,name,priority,amount,tid=None,create_time=datatime.now()):
 		self.name=name
 		self.priority=priority
 		self.progress=array('I',(0,amount))
-		self.create_time=create_time
+		if isinstance(create_time,datatime):
+			self.create_time=create_time
+		elif isinstance(create_time,str):
+			self.create_time=datatime.strptime(create_time,'%Y-%m-%d %H:%M:%S')
+		else:
+			raise TypeError
 		self.tid=self.addTid(tid)
 	def __del__(self):
 		try:
@@ -38,11 +42,11 @@ class BaseTask(object):
 			self.progress[0]=progress
 	@classmethod
 	def addTid(cls,tid=None):
-		#使用自定义tid或随机生成64位字符串并求hash
-		tid=tid or hash(''.join(random.choices(LETTERS,k=64)))
+		#使用自定义tid或随机生成32位字符串并求hash
+		tid=tid or hash(''.join(random.choices(LETTERS,k=32)))
 		#检查tid是否被使用
 		while tid not in cls.tids:
-			tid=hash(''.join(random.choices(LETTERS,k=64)))
+			tid=hash(''.join(random.choices(LETTERS,k=32)))
 		cls.tids.add(tid)
 		return tid
 	@classmethod
@@ -54,12 +58,7 @@ class BaseTask(object):
 		return json.dumps(self,default=defaultJson.getJson)
 	@classmethod
 	def fromJson(cls,jsonObj):
-		return json.loads(jsonObj,object_hook=lambda d:cls(
-			name=d['name'],
-			create_time=datetime.strptime(d['create_time'],'%Y-%m-%d %H:%M:%S'),
-			priority=d['priority'],
-			amount=d['amount']
-			))
+		return json.loads(jsonObj,object_hook=lambda d:cls(**d))
 class BaseTasks(object):
 	def __init__(self,tasks={}):
 		self.tasks=tasks
@@ -97,8 +96,6 @@ class defaultJson(object):
 		try:
 			return hooks[obj.__class__](obj)
 		except KeyError:
-			print(f'Error object:{obj}')
-			print(f'Error object type:{type(obj)}')
 			raise
 	@staticmethod
 	def fromTimeLength(obj):
@@ -192,37 +189,42 @@ class TimeLength(object):
 	@property
 	def seconds(self):
 		return self.hour*3600+self.minute*60+self.second
-		__repr__=__str__
+	__repr__=__str__
 class Ep(object):
 	status_dict={0:'wish',1:'watched',2:'watching',3:'hold',4:'dropped'}
 	def __init__(self,number='1',name='',status=1,length=TimeLength(minute=23,second=40)): #defaut value for number should be removed
 		self.number=number
 		self.name=name
 		self.status=status
-		self.length=length
+		if isinstance(length,TimeLength):
+			self.length=length
+		elif isinstance(length,str):
+			self.length=TimeLength.strptime(length)
+		else:
+			raise TypeError
 	def __bool__(self):
 		if all((number,name)):
 			return True
 		else:
 			return False
 	def __str__(self):
-		return f'number:{self.number},name:{self.name}'
+		return self.__dict__.__str__()
+		#return f'number:{self.number},name:{self.name}'
 	@classmethod
 	def fromJson(cls,jsonObj):
-		try:
-			return json.loads(jsonObj,object_hook=lambda d:cls(**d))
-		except:
-			print(f'Error jsonObj:{jsonObj}')
-			print(f'Error jsonObj type:{type(jsonObj)}')
-			#print(f'direct:{json.loads(jsonObj)}')
-			raise
+		return json.loads(jsonObj,object_hook=cls.fromDict)
+	@classmethod
+	def fromDict(cls,d):
+		return cls(**d)
 	__repr__=__str__
 class Eps(object):
 	def __init__(self,eps=()):
 		try:
 			self.eps={ep.number:ep for ep in eps}
-		except:
+		except (TypeError,ArithmeticError):
 			raise
+	def __str__(self):
+		return self.eps.__str__()
 	def __len__(self):
 		return len(self.eps)
 	def __getitem__(self,key):
@@ -238,17 +240,9 @@ class Eps(object):
 			raise ValueError(f'Ep {number} is not exist')
 	@classmethod
 	def fromJson(cls,jsonObj):
-		try:
-			return json.loads(jsonObj,object_hook=lambda d:cls([Ep.fromJson(i) for i in d.values()]))
-		except TypeError:
-			print(f'Error jsonObj:{jsonObj}')
-			print(f'Error jsonObj type:{type(jsonObj)}')
-			#print(f'direct:{json.loads(jsonObj)}')
-			raise
-	@classmethod
-	def __fromdict(cls,d):
-		print(d)
+		d=json.loads(jsonObj)
 		return cls([Ep(**i) for i in d['eps']])
+	__repr__=__str__
 class Anime(BaseTask):
 	def __init__(self,name='',priority=0,eps=Eps([Ep()]),tid=None,create_time=datetime.now()):
 		super().__init__(name=name,priority=priority,amount=len(eps),create_time=create_time,tid=tid)
