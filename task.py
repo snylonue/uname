@@ -218,7 +218,9 @@ class Ep(object):
 		else:
 			return False
 	def __str__(self):
-		return self.__dict__.__str__()
+		return f'''Ep {self.number}:
+	{self.name},{self.status},{self.length}
+		'''
 		#return f'number:{self.number},name:{self.name}'
 	@classmethod
 	def fromJson(cls,jsonObj):
@@ -234,7 +236,9 @@ class Eps(object):
 		except (TypeError,ArithmeticError):
 			raise
 	def __str__(self):
-		return self.eps.__str__()
+		return f'''Eps:
+	{[i for i in self.eps.values()]}
+		'''
 	def __len__(self):
 		return len(self.eps)
 	def __getitem__(self,key):
@@ -260,6 +264,11 @@ class Anime(BaseTask):
 	def __init__(self,name='',priority=0,eps=Eps([Ep()]),tid=None,create_time=datetime.now()):
 		super().__init__(name=name,priority=priority,progress=len(eps),create_time=create_time,tid=tid)
 		self.eps=eps
+	def __str__(self):
+		return f'''Anime {self.name} {self.progress[0]}/{self.progress[1]}:
+	priority:{self.priority},
+	{self.eps}
+			'''
 	def addEp(self,new_ep):
 		self.eps.add(new_ep)
 		self.updateAmount(len(self.eps))
