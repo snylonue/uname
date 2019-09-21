@@ -10,6 +10,7 @@ from collections import defaultdict
 from array import array
 
 LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+errors=[]
 
 class BaseTask(object):
 	tids=set()
@@ -60,11 +61,16 @@ class BaseTask(object):
 			amount=d['amount']
 			))
 class BaseTasks(object):
-	def __init__(self,rec_path='data/rec'):
-		self.tasks={}
-		self.rec(rec_path)
-	def rec(self,rec_path):
-		path=pathlib.Path(rec_path).mkdir(exist_ok=True)
+	def __init__(self,tasks={}):
+		self.tasks=tasks
+	def __getitem__(self,key):
+		return self.tasks[key]
+	def __setitem__(self,key,value): #not recommend,add() is easier
+		self.tasks[key]=value
+	@classmethod			
+	def fromFiles(self,path):
+		path=pathlib.Path(path).mkdir(exist_ok=True)
+		tasks={}
 		for x in path.iterdir():
 			with open(x,'r') as f:
 				try:
@@ -72,7 +78,15 @@ class BaseTasks(object):
 				except (IOError,json.decoder.JSONDecodeError):
 					raise
 				else:
-					self.tasks[task.tid]=task
+					tasks[task.tid]=task
+		return cls(tasks)
+	def add(self,new_task):
+		self[new_task.tid]=new_task
+	def pop(self,tid):
+		try:
+			self.tasks.pop(tid)
+		except KeyError:
+			raise ValueError(f'Tid {tid} is not exist')
 class defaultJson(object):
 	toList=lambda obj:list(obj)
 	@classmethod
@@ -83,10 +97,12 @@ class defaultJson(object):
 		try:
 			return hooks[obj.__class__](obj)
 		except KeyError:
+			print(f'Error object:{obj}')
+			print(f'Error object type:{type(obj)}')
 			raise
 	@staticmethod
 	def fromTimeLength(obj):
-		return obj.strftime
+		return obj.strftime()
 	@staticmethod
 	def fromEp(obj):
 		return {
@@ -97,7 +113,7 @@ class defaultJson(object):
 		}
 	@staticmethod
 	def fromEps(obj):
-		return [obj.eps]
+		return {'eps':[i for i in obj.eps.values()]}
 	@staticmethod
 	def fromBaseTask(obj):
 		return {
@@ -118,12 +134,6 @@ class defaultJson(object):
 	@staticmethod
 	def fromDatetime(obj):
 		return obj.strftime('%Y-%m-%d %H:%M:%S')
-	@staticmethod
-	def fromSet(obj):
-		return list(obj)
-	@staticmethod
-	def fromArray(obj):
-		return list(obj)
 class TimeLength(object):
 	def __init__(self,hour=0,minute=0,second=0):
 		self.hour=hour
@@ -179,10 +189,13 @@ class TimeLength(object):
 		if self.minute>=60:
 			self.hour+=self.minute//60
 			self.minute%=60
-	__repr__=__str__
+	@property
+	def seconds(self):
+		return self.hour*3600+self.minute*60+self.second
+		__repr__=__str__
 class Ep(object):
 	status_dict={0:'wish',1:'watched',2:'watching',3:'hold',4:'dropped'}
-	def __init__(self,number:str,name='',status=1,length=TimeLength(minute=23,second=40)):
+	def __init__(self,number='1',name='',status=1,length=TimeLength(minute=23,second=40)): #defaut value for number should be removed
 		self.number=number
 		self.name=name
 		self.status=status
@@ -192,41 +205,66 @@ class Ep(object):
 			return True
 		else:
 			return False
+	def __str__(self):
+		return f'number:{self.number},name:{self.name}'
+	@classmethod
+	def fromJson(cls,jsonObj):
+		try:
+			return json.loads(jsonObj,object_hook=lambda d:cls(**d))
+		except:
+			print(f'Error jsonObj:{jsonObj}')
+			print(f'Error jsonObj type:{type(jsonObj)}')
+			#print(f'direct:{json.loads(jsonObj)}')
+			raise
+	__repr__=__str__
 class Eps(object):
-	def __init__(self,eps):
-		self.eps={ep.number:ep for ep in eps}
+	def __init__(self,eps=()):
+		try:
+			self.eps={ep.number:ep for ep in eps}
+		except:
+			raise
 	def __len__(self):
 		return len(self.eps)
-	def __iadd__(self,other:Ep):
-		if self.eps.get(other.number):
-			raise ValueError(f'Ep {other.number} is exist')
-		self.eps[other.number]=other
-	def __isub__(self,other:Ep):
+	def __getitem__(self,key):
+		return self.eps[key]
+	def add(self,new_ep):
+		if self.eps.get(new_ep.number):
+			raise ValueError(f'Ep {new_ep.number} is exist')
+		self[new_ep.number]=new_ep
+	def pop(self,number):
 		try:
-			self.eps.pop(other.number)
+			self.eps.pop(number)
 		except KeyError:
-			raise ValueError(f'Ep {other.number} is not exist')
-	def fromJson(self,jsonObj):pass
+			raise ValueError(f'Ep {number} is not exist')
+	@classmethod
+	def fromJson(cls,jsonObj):
+		try:
+			return json.loads(jsonObj,object_hook=lambda d:cls([Ep.fromJson(i) for i in d.values()]))
+		except TypeError:
+			print(f'Error jsonObj:{jsonObj}')
+			print(f'Error jsonObj type:{type(jsonObj)}')
+			#print(f'direct:{json.loads(jsonObj)}')
+			raise
+	@classmethod
+	def __fromdict(cls,d):
+		print(d)
+		return cls([Ep(**i) for i in d['eps']])
 class Anime(BaseTask):
-	def __init__(self,name='',priority=0,eps=Eps((Ep())),tid=None,create_time=datetime.now()):
+	def __init__(self,name='',priority=0,eps=Eps([Ep()]),tid=None,create_time=datetime.now()):
 		super().__init__(name=name,priority=priority,amount=len(eps),create_time=create_time,tid=tid)
 		self.eps=eps
 	def addEp(self,new_ep):
-		try:
-			self.eps+=new_ep
-		except ValueError:
-			raise
-	def delEp(self,ep):
-		try:
-			self.eps-=ep
-		except ValueError:
-			raise
+		self.eps.add(new_ep)
+		self.updateAmount(len(self.eps))
+	def delEp(self,number):
+		self.eps.pop(number)
+		self.updateAmount(len(self.eps))
 	@classmethod
 	def fromJson(cls,jsonObj):
 		return json.loads(jsonObj,object_hook=lambda d:cls(
 			name=d['name'],
 			create_time=datetime.strptime(d['create_time'],'%Y-%m-%d %H:%M:%S'),
 			priority=d['priority'],
-			amount=d['amount']
+			amount=d['amount'],
 			eps=d['eps']
 			))
