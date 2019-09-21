@@ -13,17 +13,25 @@ LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
 class BaseTask(object):
 	tids=set()
-	def __init__(self,name,priority,amount,tid=None,create_time=datatime.now()):
+	def __init__(self,name,priority,progress:list,amount=1,tid=None,create_time=datetime.now()):
 		self.name=name
 		self.priority=priority
-		self.progress=array('I',(0,amount))
-		if isinstance(create_time,datatime):
+		try:
+			self.progress=array('I',progress)
+		except TypeError:
+			if amount:
+				self.progress=array('I',(0,amount))
+			else:
+				raise
+		if isinstance(create_time,datetime):
 			self.create_time=create_time
 		elif isinstance(create_time,str):
-			self.create_time=datatime.strptime(create_time,'%Y-%m-%d %H:%M:%S')
+			self.create_time=datetime.strptime(create_time,'%Y-%m-%d %H:%M:%S')
 		else:
 			raise TypeError
 		self.tid=self.addTid(tid)
+	def __str__(self):
+		return self.__dict__.__str__()
 	def __del__(self):
 		try:
 			self.delTid(self.tid)
@@ -42,11 +50,11 @@ class BaseTask(object):
 			self.progress[0]=progress
 	@classmethod
 	def addTid(cls,tid=None):
-		#使用自定义tid或随机生成32位字符串并求hash
-		tid=tid or hash(''.join(random.choices(LETTERS,k=32)))
+		#使用自定义tid或随机生成64位字符串并求hash
+		tid=tid or hash(''.join(random.choices(LETTERS,k=64)))
 		#检查tid是否被使用
-		while tid not in cls.tids:
-			tid=hash(''.join(random.choices(LETTERS,k=32)))
+		while tid in cls.tids:
+			tid=hash(''.join(random.choices(LETTERS,k=64)))
 		cls.tids.add(tid)
 		return tid
 	@classmethod
@@ -59,6 +67,7 @@ class BaseTask(object):
 	@classmethod
 	def fromJson(cls,jsonObj):
 		return json.loads(jsonObj,object_hook=lambda d:cls(**d))
+	__repr__=__str__
 class BaseTasks(object):
 	def __init__(self,tasks={}):
 		self.tasks=tasks
@@ -117,7 +126,8 @@ class defaultJson(object):
 			'name':obj.name,
 			'create_time':obj.create_time,
 			'priority':obj.priority,
-			'amount':obj.amount,
+			'progress':obj.progress,
+			'tid':obj.tid
 			}
 	@staticmethod
 	def fromAnime(obj):
@@ -137,7 +147,7 @@ class TimeLength(object):
 		self.minute=minute
 		self.second=second
 		self.simple()
-	def __add__(self,other):#add a datatime object is allowed but not recommended
+	def __add__(self,other):#add a datetime object is allowed but not recommended
 		try:
 			new_hour=self.hour+other.hour
 			new_minute=self.minute+other.minute
@@ -257,7 +267,7 @@ class Anime(BaseTask):
 	def fromJson(cls,jsonObj):
 		return json.loads(jsonObj,object_hook=lambda d:cls(
 			name=d['name'],
-			create_time=datetime.strptime(d['create_time'],'%Y-%m-%d %H:%M:%S'),
+			create_time=d['create_time'],
 			priority=d['priority'],
 			amount=d['amount'],
 			eps=d['eps']
