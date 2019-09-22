@@ -69,12 +69,17 @@ class BaseTask(object):
 		return json.loads(jsonObj,object_hook=lambda d:cls(**d))
 	__repr__=__str__
 class BaseTasks(object):
+	inc_cls=BaseTask
 	def __init__(self,tasks={}):
 		self.tasks=tasks
 	def __getitem__(self,key):
 		return self.tasks[key]
 	def __setitem__(self,key,value): #not recommend,add() is easier
 		self.tasks[key]=value
+	def __iter__(self):
+		return iter(self.tasks.values())
+	def __str__(self):
+		return self.tasks.__str__()
 	@classmethod			
 	def fromFiles(self,path):
 		path=pathlib.Path(path).mkdir(exist_ok=True)
@@ -281,3 +286,9 @@ class Anime(BaseTask):
 		eps=Eps.fromDict(d['eps'])
 		d.pop('eps')
 		return cls(**d,eps=eps)
+class Animes(BaseTasks):
+	inc_cls=Anime
+	def __init__(self,tasks={}):
+		super().__init__(tasks)
+	def create(self,name,ep_infos=[{'number':'2','name':'default1','length':'25:00'},{'number':'2','name':'default2'}]):
+		self.add(self.inc_cls(name=name,eps=Eps([Ep(**i) for i in ep_infos])))
