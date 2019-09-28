@@ -3,13 +3,12 @@
 
 import random
 import json
-import os
 import pathlib
 from datetime import datetime,date
 from collections import defaultdict
 from array import array
 
-LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+__LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
 class BaseTask(object):
 	tids=set()
@@ -22,7 +21,7 @@ class BaseTask(object):
 			if amount:
 				self.progress=array('I',(0,amount))
 			else:
-				raise
+				raise TypeError(f'{amount.__class__.__name__} object is not an integer or not iterable')
 		if isinstance(create_time,datetime):
 			self.create_time=create_time
 		elif isinstance(create_time,str):
@@ -51,10 +50,10 @@ class BaseTask(object):
 	@classmethod
 	def addTid(cls,tid=None):
 		#使用自定义tid或随机生成64位字符串并求hash
-		tid=tid or hash(''.join(random.choices(LETTERS,k=64)))
+		tid=tid or hash(''.join(random.choices(__LETTERS,k=64)))
 		#检查tid是否被使用
 		while tid in cls.tids:
-			tid=hash(''.join(random.choices(LETTERS,k=64)))
+			tid=hash(''.join(random.choices(__LETTERS,k=64)))
 		cls.tids.add(tid)
 		return tid
 	@classmethod
@@ -70,6 +69,7 @@ class BaseTask(object):
 	__repr__=__str__
 class BaseTasks(object):
 	inc_cls=BaseTask
+	savepath='data/tasks'
 	def __init__(self,tasks={}):
 		self.tasks=tasks
 	def __getitem__(self,key):
@@ -81,18 +81,24 @@ class BaseTasks(object):
 	def __str__(self):
 		return self.tasks.__str__()
 	@classmethod			
-	def fromFiles(self,path):
-		path=pathlib.Path(path).mkdir(exist_ok=True)
+	def fromFiles(cls,path):
 		tasks={}
 		for x in path.iterdir():
 			with open(x,'r') as f:
 				try:
-					task=json.loads(f.read(),object_hook=lambda:None)
-				except (IOError,json.decoder.JSONDecodeError):
+					task=cls.inc_cls.fromJson(f.read())
+				except (OSError,TypeError,json.decoder.JSONDecodeError):
 					raise
 				else:
 					tasks[task.tid]=task
 		return cls(tasks)
+	def toFiles(self,path=self.savepath):
+		for k,v in self.tasks.items():
+			try:
+				with open(k,'w') as f:
+					f.write(self.expt())
+			except (OSError,json.decoder.JSONDecodeError):
+				raise
 	def add(self,new_task):
 		self[new_task.tid]=new_task
 	def pop(self,tid):
@@ -105,12 +111,12 @@ class defaultJson(object):
 	@classmethod
 	def getJson(cls,obj):
 		hooks={BaseTask:cls.fromBaseTask,TimeLength:cls.fromTimeLength,
-		   Ep:cls.fromEp,Eps:cls.fromEps,Anime:cls.fromAnime,
+		   Ep:cls.fromEp,Eps:cls.fromEps,Video:cls.fromVideo,
 		   datetime:lambda obj:obj.strftime('%Y-%m-%d %H:%M:%S'),array:cls.toList,set:cls.toList}
 		try:
 			return hooks[obj.__class__](obj)
 		except KeyError:
-			raise
+			raise TypeError(f'{obj.__class__.__name__} object is not supported')
 	@staticmethod
 	def fromTimeLength(obj):
 		return obj.strftime()
@@ -135,7 +141,7 @@ class defaultJson(object):
 			'tid':obj.tid
 			}
 	@staticmethod
-	def fromAnime(obj):
+	def fromVideo(obj):
 		return {
 			'name':obj.name,
 			'create_time':obj.create_time,
@@ -265,12 +271,13 @@ class Eps(object):
 	def fromDict(cls,d):
 		return cls([Ep(**i) for i in d['eps']])
 	__repr__=__str__
-class Anime(BaseTask):
-	def __init__(self,name='',priority=0,eps=Eps([Ep()]),tid=None,create_time=datetime.now()):
+class Video(BaseTask):
+	def __init__(self,name='',priority=0,eps=Eps([Ep()]),times=1,tid=None,create_time=datetime.now()):
 		super().__init__(name=name,priority=priority,progress=len(eps),create_time=create_time,tid=tid)
 		self.eps=eps
+		self.times=times
 	def __str__(self):
-		return f'''Anime {self.name} {self.progress[0]}/{self.progress[1]}:
+		return f'''Video {self.name} {self.progress[0]}/{self.progress[1]}:
 	priority:{self.priority},
 	{self.eps}
 			'''
@@ -280,15 +287,28 @@ class Anime(BaseTask):
 	def delEp(self,number):
 		self.eps.pop(number)
 		self.updateAmount(len(self.eps))
+	def addTime(self):
+		self.times+=1
+	def updateTime(self,new_times):
+		self.times=new_times
 	@classmethod
 	def fromJson(cls,jsonObj):
 		d=json.loads(jsonObj)
 		eps=Eps.fromDict(d['eps'])
 		d.pop('eps')
 		return cls(**d,eps=eps)
-class Animes(BaseTasks):
-	inc_cls=Anime
+	@classmethod
+	def fromDict(cls,d): # format:{'name':name,'info':[{'number':number,'name':'length':},{'number':'number','name':'length':}]}
+		return cls(name=d['name'],eps=Eps([Ep(**i) for i in d['info']]))
+class Videos(BaseTasks):
+	inc_cls=Video
+	savepath='data/videos'
 	def __init__(self,tasks={}):
 		super().__init__(tasks)
+	def search(self,name):
+		for x in self:
+			if x.name=name:
+				return x
+		raise ValueError(f'{name} not found')
 	def create(self,name,ep_infos=[{'number':'2','name':'default1','length':'25:00'},{'number':'2','name':'default2'}]):
 		self.add(self.inc_cls(name=name,eps=Eps([Ep(**i) for i in ep_infos])))
