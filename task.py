@@ -7,6 +7,7 @@ import pathlib
 from datetime import datetime,date
 from collections import defaultdict
 from array import array
+from timetool import *
 
 __LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
@@ -152,65 +153,6 @@ class defaultJson(object):
 	@staticmethod
 	def fromDatetime(obj):
 		return obj.strftime('%Y-%m-%d %H:%M:%S')
-class TimeLength(object):
-	def __init__(self,hour=0,minute=0,second=0):
-		self.hour=hour
-		self.minute=minute
-		self.second=second
-		self.simple()
-	def __add__(self,other):#add a datetime object is allowed but not recommended
-		try:
-			new_hour=self.hour+other.hour
-			new_minute=self.minute+other.minute
-			new_second=self.second+other.second
-		except AttributeError:
-			return NotImplemented
-		return TimeLength(new_hour,new_minute,new_second)
-	def __sub__(self,other):
-		try:
-			new_hour=self.hour+other.hour
-			new_minute=self.minute+other.minute
-			new_second=self.second+other.second
-		except AttributeError:
-			return NotImplemented
-		return TimeLength(new_hour,new_minute,new_second)
-	def __iadd__(self,other):
-		try:
-			self.hour=other.hour
-			self.minute=other.minute
-			self.second=other.second
-		except ArithmeticError:
-			return NotImplemented
-	def __isub__(self,other):
-		try:
-			self.hour=other.hour
-			self.minute=other.minute
-			self.second=other.second
-		except ArithmeticError:
-			return NotImplemented
-	def __str__(self):
-		if self.hour:
-			return ''.join(f'{self.hour}:{self.minute}:{self.second}')
-		elif self.minute:
-			return ''.join(f'{self.minute}:{self.second}')
-		else:
-			return ''.join(str(self.second))
-	def strftime(self):
-		return f'{self.hour}:{self.minute}:{self.second}'
-	@classmethod
-	def strptime(cls,strtime):
-		return cls(*[int(i) for i in strtime.split(':')])
-	def simple(self):
-		if self.second>=60:
-			self.minute+=self.second//60
-			self.second%=60
-		if self.minute>=60:
-			self.hour+=self.minute//60
-			self.minute%=60
-	@property
-	def seconds(self):
-		return self.hour*3600+self.minute*60+self.second
-	__repr__=__str__
 class Ep(object):
 	status_dict={0:'wish',1:'watched',2:'watching',3:'hold',4:'dropped'}
 	def __init__(self,number='1',name='',status=1,length=TimeLength(minute=23,second=40)): #defaut value for number should be removed
@@ -269,7 +211,7 @@ class Eps(object):
 		return cls.fromDict(d)
 	@classmethod
 	def fromDict(cls,d):
-		return cls([Ep(**i) for i in d['eps']])
+		return cls((Ep(**i) for i in d['eps']))
 	__repr__=__str__
 class Video(BaseTask):
 	def __init__(self,name='',priority=0,eps=Eps([Ep()]),times=1,tid=None,create_time=datetime.now()):
@@ -299,7 +241,7 @@ class Video(BaseTask):
 		return cls(**d,eps=eps)
 	@classmethod
 	def fromDict(cls,d): # format:{'name':name,'info':[{'number':number,'name':'length':},{'number':'number','name':'length':}]}
-		return cls(name=d['name'],eps=Eps([Ep(**i) for i in d['info']]))
+		return cls(name=d['name'],eps=Eps((Ep(**i) for i in d['info'])))
 class Videos(BaseTasks):
 	inc_cls=Video
 	savepath='data/videos'
