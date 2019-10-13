@@ -5,56 +5,41 @@ import random
 import json
 import pathlib
 from datetime import datetime,date
-from collections import defaultdict
+from collections import defaultdict,namedtuple
 from array import array
 from timetool import *
 
-__LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+Progress=namedtuple('Progress',['finished','total'])
 
 class BaseTask(object):
 	tids=set()
-	def __init__(self,name,priority,progress:list,amount=1,tid=None,create_time=datetime.now()):
+	__timetype={datetime:lambda x:x,str:lambda x:datetime.strptime(x,'%Y-%m-%d %H:%M:%S')}
+	__LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+	def __init__(self,name,priority,progress,amount=1,tid=None,create_time=datetime.now()):
 		self.name=name
 		self.priority=priority
+		self.progress=Progress(0,progress)
 		try:
-			self.progress=array('I',progress)
-		except TypeError:
-			if amount:
-				self.progress=array('I',(0,amount))
-			else:
-				raise TypeError(f'{amount.__class__.__name__} object is not an integer or not iterable')
-		if isinstance(create_time,datetime):
-			self.create_time=create_time
-		elif isinstance(create_time,str):
-			self.create_time=datetime.strptime(create_time,'%Y-%m-%d %H:%M:%S')
-		else:
-			raise TypeError
+			self.create_time=self.__timetype[create_time.__class__](create_time)
+		except KeyError:
+			raise TypeError(f'Unsupport type {create_time.__class__.__name__} for create_time')
 		self.tid=self.addTid(tid)
-	def __str__(self):
+	def __repr__(self):
 		return self.__dict__.__str__()
 	def __del__(self):
 		try:
 			self.delTid(self.tid)
-		except ValueError:
+		except (ValueError,AttributeError):
 			pass
 	def updateName(self,new_name):
 		self.name=new_name
-	def updatePriority(self,new_priority):
-		self.priority=new_priority
-	def updateAmount(self,new_amount):
-		self.progress[1]=new_amount
-	def updateProgess(self,progress):
-		if progress>self.progress[1]:
-			raise ValueError(f'progress {progress} is more than total amount {self.progress[1]}')
-		else:
-			self.progress[0]=progress
+	def updateProgess(self,new_progress=(0,1)):
+		self.progress=Progress(*new_progress)
 	@classmethod
 	def addTid(cls,tid=None):
-		#使用自定义tid或随机生成64位字符串并求hash
-		tid=tid or hash(''.join(random.choices(__LETTERS,k=64)))
-		#检查tid是否被使用
+		tid=tid or hash(''.join(random.choices(cls.__LETTERS,k=32)))
 		while tid in cls.tids:
-			tid=hash(''.join(random.choices(__LETTERS,k=64)))
+			tid=hash(''.join(random.choices(cls.__LETTERS,k=32)))
 		cls.tids.add(tid)
 		return tid
 	@classmethod
@@ -67,7 +52,6 @@ class BaseTask(object):
 	@classmethod
 	def fromJson(cls,jsonObj):
 		return json.loads(jsonObj,object_hook=lambda d:cls(**d))
-	__repr__=__str__
 class BaseTasks(object):
 	inc_cls=BaseTask
 	savepath='data/tasks'
@@ -79,11 +63,12 @@ class BaseTasks(object):
 		self.tasks[key]=value
 	def __iter__(self):
 		return iter(self.tasks.values())
-	def __str__(self):
+	def __repr__(self):
 		return self.tasks.__str__()
 	@classmethod			
 	def fromFiles(cls,path):
 		tasks={}
+		path=pathlib.Path(path)
 		for x in path.iterdir():
 			with open(x,'r') as f:
 				try:
@@ -93,11 +78,14 @@ class BaseTasks(object):
 				else:
 					tasks[task.tid]=task
 		return cls(tasks)
-	def toFiles(self,path=self.savepath):
+	def toFiles(self,path=None):
+		path=path or self.savepath
+		path=path.strip('/').strip('\\')
+		pathlib.Path(path).mkdir(exist_ok=True)
 		for k,v in self.tasks.items():
 			try:
-				with open(k,'w') as f:
-					f.write(self.expt())
+				with open(f'{path}/{k}.json','w') as f:
+					f.write(v.expt())
 			except (OSError,json.decoder.JSONDecodeError):
 				raise
 	def add(self,new_task):
@@ -113,11 +101,11 @@ class defaultJson(object):
 	def getJson(cls,obj):
 		hooks={BaseTask:cls.fromBaseTask,TimeLength:cls.fromTimeLength,
 		   Ep:cls.fromEp,Eps:cls.fromEps,Video:cls.fromVideo,
-		   datetime:lambda obj:obj.strftime('%Y-%m-%d %H:%M:%S'),array:cls.toList,set:cls.toList}
+		   datetime:cls.fromDatetime,array:cls.toList,set:cls.toList,Progress:cls.toList}
 		try:
 			return hooks[obj.__class__](obj)
 		except KeyError:
-			raise TypeError(f'{obj.__class__.__name__} object is not supported')
+			raise TypeError(f'Unsupport type: {obj.__class__.__name__}')
 	@staticmethod
 	def fromTimeLength(obj):
 		return obj.strftime()
@@ -155,25 +143,24 @@ class defaultJson(object):
 		return obj.strftime('%Y-%m-%d %H:%M:%S')
 class Ep(object):
 	status_dict={0:'wish',1:'watched',2:'watching',3:'hold',4:'dropped'}
-	def __init__(self,number='1',name='',status=1,length=TimeLength(minute=23,second=40)): #defaut value for number should be removed
+	__tlentype={TimeLength:lambda x:x,str:lambda x:TimeLength.strptime(x)}
+	def __init__(self,number='1',name='',status=1,length=TimeLength()): #defaut value for number should be removed
 		self.number=number
 		self.name=name
 		self.status=status
-		if isinstance(length,TimeLength):
-			self.length=length
-		elif isinstance(length,str):
-			self.length=TimeLength.strptime(length)
-		else:
+		try:
+			self.length=self.__tlentype[length.__class__](length)
+		except TypeError:
+			raise ValueError
+		except KeyError:
 			raise TypeError
 	def __bool__(self):
 		if all((number,name)):
 			return True
 		else:
 			return False
-	def __str__(self):
-		return f'''Ep {self.number}:
-	{self.name},{self.status},{self.length}
-		'''
+	def __repr__(self):
+		return f'''Ep {self.number}:{self.name},{self.status},{self.length}'''
 		#return f'number:{self.number},name:{self.name}'
 	@classmethod
 	def fromJson(cls,jsonObj):
@@ -181,16 +168,16 @@ class Ep(object):
 	@classmethod
 	def fromDict(cls,d):
 		return cls(**d)
-	__repr__=__str__
 class Eps(object):
 	def __init__(self,eps=()):
 		try:
 			self.eps={ep.number:ep for ep in eps}
 		except (TypeError,ArithmeticError):
 			raise
-	def __str__(self):
+	def __repr__(self):
+		n='\n      '
 		return f'''Eps:
-	{[i for i in self.eps.values()]}
+      {n.join([str(i) for i in self.eps.values()])}
 		'''
 	def __len__(self):
 		return len(self.eps)
@@ -212,16 +199,14 @@ class Eps(object):
 	@classmethod
 	def fromDict(cls,d):
 		return cls((Ep(**i) for i in d['eps']))
-	__repr__=__str__
 class Video(BaseTask):
 	def __init__(self,name='',priority=0,eps=Eps([Ep()]),times=1,tid=None,create_time=datetime.now()):
 		super().__init__(name=name,priority=priority,progress=len(eps),create_time=create_time,tid=tid)
 		self.eps=eps
 		self.times=times
-	def __str__(self):
-		return f'''Video {self.name} {self.progress[0]}/{self.progress[1]}:
-	priority:{self.priority},
-	{self.eps}
+	def __repr__(self):
+		return f'''Video {self.name} {self.progress[0]}/{self.progress[1]}:priority:{self.priority},
+    {self.eps}
 			'''
 	def addEp(self,new_ep):
 		self.eps.add(new_ep)
@@ -245,12 +230,19 @@ class Video(BaseTask):
 class Videos(BaseTasks):
 	inc_cls=Video
 	savepath='data/videos'
-	def __init__(self,tasks={}):
-		super().__init__(tasks)
+	def __init__(self,videos={}):
+		super().__init__(videos)
+	def __repr__(self):
+		n='\n  '
+		return f'''Videos:
+  {n.join([str(i) for i in self.tasks.values()])}'''
+	@classmethod
+	def fromOnes(cls,videos=()):
+		return cls({i.tid:i for i in videos})
 	def search(self,name):
 		for x in self:
-			if x.name=name:
+			if x.name==name:
 				return x
 		raise ValueError(f'{name} not found')
-	def create(self,name,ep_infos=[{'number':'2','name':'default1','length':'25:00'},{'number':'2','name':'default2'}]):
+	def add_by_detail(self,name,ep_infos=[{'number':'2','name':'default1','length':'25:00'},{'number':'2','name':'default2'}]):
 		self.add(self.inc_cls(name=name,eps=Eps([Ep(**i) for i in ep_infos])))

@@ -28,6 +28,7 @@ class TimeLength(object):
 			self.hour=other.hour
 			self.minute=other.minute
 			self.second=other.second
+			self.simple()
 		except ArithmeticError:
 			return NotImplemented
 	def __isub__(self,other):
@@ -35,6 +36,7 @@ class TimeLength(object):
 			self.hour-=other.hour
 			self.minute-=other.minute
 			self.second-=other.second
+			self.simple()
 		except ArithmeticError:
 			return NotImplemented
 	def __repr__(self):
