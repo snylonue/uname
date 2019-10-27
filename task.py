@@ -14,7 +14,7 @@ Progress=namedtuple('Progress',['finished','total'])
 class BaseTask(object):
 	tids=set()
 	__timetype={datetime:lambda x:x,str:lambda x:datetime.strptime(x,'%Y-%m-%d %H:%M:%S')}
-	__LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+	LETTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 	def __init__(self,name,priority,progress,amount=1,tid=None,create_time=datetime.now()):
 		self.name=name
 		self.priority=priority
@@ -37,9 +37,9 @@ class BaseTask(object):
 		self.progress=Progress(*new_progress)
 	@classmethod
 	def addTid(cls,tid=None):
-		tid=tid or hash(''.join(random.choices(cls.__LETTERS,k=32)))
+		tid=tid or hash(''.join(random.choices(cls.LETTERS,k=32)))
 		while tid in cls.tids:
-			tid=hash(''.join(random.choices(cls.__LETTERS,k=32)))
+			tid=hash(''.join(random.choices(cls.LETTERS,k=32)))
 		cls.tids.add(tid)
 		return tid
 	@classmethod
@@ -78,6 +78,8 @@ class BaseTasks(object):
 				else:
 					tasks[task.tid]=task
 		return cls(tasks)
+	def toJsons(self):
+		return json.dumps([i.expt() for i in self.tasks.values()],default=defaultJson.getJson)
 	def toFiles(self,path=None):
 		path=path or self.savepath
 		path=path.strip('/').strip('\\')
