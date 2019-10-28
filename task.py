@@ -50,6 +50,8 @@ class BaseTask(object):
 	def expt(self):
 		return json.dumps(self,default=defaultJson.getJson)
 	@classmethod
+	def toDict(self):
+		return json.loads(self.expt())
 	def fromJson(cls,jsonObj):
 		return json.loads(jsonObj,object_hook=lambda d:cls(**d))
 class BaseTasks(object):
@@ -78,7 +80,7 @@ class BaseTasks(object):
 				else:
 					tasks[task.tid]=task
 		return cls(tasks)
-	def toJsons(self):
+	def toJsons(self):#plan to be replaced
 		return json.dumps([i.expt() for i in self.tasks.values()],default=defaultJson.getJson)
 	def toFiles(self,path=None):
 		path=path or self.savepath
@@ -97,6 +99,9 @@ class BaseTasks(object):
 			self.tasks.pop(tid)
 		except KeyError:
 			raise ValueError(f'Tid {tid} is not exist')
+	@property
+	def tids(self):
+		return self.tasks.keys()
 class defaultJson(object):
 	toList=lambda obj:list(obj)
 	@classmethod
@@ -241,10 +246,21 @@ class Videos(BaseTasks):
 	@classmethod
 	def fromOnes(cls,videos=()):
 		return cls({i.tid:i for i in videos})
-	def search(self,name):
+	def search(self,name):#plan to be replaced
 		for x in self:
 			if x.name==name:
 				return x
 		raise ValueError(f'{name} not found')
 	def add_by_detail(self,name,ep_infos=[{'number':'2','name':'default1','length':'25:00'},{'number':'2','name':'default2'}]):
 		self.add(self.inc_cls(name=name,eps=Eps([Ep(**i) for i in ep_infos])))
+	def search_tid(self,tid):
+		try:
+			return {'data':self.tasks[tid].toDict()}
+		except KeyError:
+			return {'data':{'status':'err','message':f'tid {tid} ia not exist'}}
+	@property
+	def names(self):#plan to be replaced
+		return {'data':[i.name for i in self.tasks.values()]}
+	@property
+	def progresses(self):
+		return {'data':{i.tid:i.name,[i.progress.finished,i.progress.total]}}
