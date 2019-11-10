@@ -11,6 +11,8 @@ from timetool import *
 
 Progress=namedtuple('Progress',['finished','total'])
 
+class TidNotFoundError(ValueError):
+	pass
 class BaseTask(object):
 	tids=set()
 	__timetype={datetime:lambda x:x,str:lambda x:datetime.strptime(x,'%Y-%m-%d %H:%M:%S')}
@@ -45,7 +47,7 @@ class BaseTask(object):
 	@classmethod
 	def delTid(cls,tid):
 		if tid not in cls.tids:
-			raise ValueError(f'tid {tid} is not exist')
+			raise TidNotFoundError(f'tid {tid} is not exist')
 		cls.tids.remove(tid)
 	def expt(self):
 		return json.dumps(self,default=defaultJson.getJson)
@@ -59,6 +61,7 @@ class BaseTasks(object):
 	savepath='data/tasks'
 	def __init__(self,tasks={}):
 		self.tasks=tasks
+		self.tids=self.tasks.keys()
 	def __getitem__(self,key):
 		return self.tasks[key]
 	def __setitem__(self,key,value): #not recommend,add() is easier
@@ -84,7 +87,7 @@ class BaseTasks(object):
 		return json.dumps([i.expt() for i in self.tasks.values()],default=defaultJson.getJson)
 	def toFiles(self,path=None):
 		path=path or self.savepath
-		path=path.strip('/').strip('\\')
+		path=path.strip('/').strip('\\') #may cause problem
 		pathlib.Path(path).mkdir(exist_ok=True)
 		for k,v in self.tasks.items():
 			try:
@@ -98,7 +101,7 @@ class BaseTasks(object):
 		try:
 			self.tasks.pop(tid)
 		except KeyError:
-			raise ValueError(f'Tid {tid} is not exist')
+			raise TidNotFoundError(f'Tid {tid} is not exist')
 	@property
 	def tids(self):
 		return self.tasks.keys()
@@ -247,20 +250,23 @@ class Videos(BaseTasks):
 	def fromOnes(cls,videos=()):
 		return cls({i.tid:i for i in videos})
 	def search(self,name):#plan to be replaced
-		for x in self:
+		for x in self.names:
 			if x.name==name:
-				return x
+				return x.tid
 		raise ValueError(f'{name} not found')
 	def add_by_detail(self,name,ep_infos=[{'number':'2','name':'default1','length':'25:00'},{'number':'2','name':'default2'}]):
 		self.add(self.inc_cls(name=name,eps=Eps([Ep(**i) for i in ep_infos])))
-	def search_tid(self,tid):
+	def search_by_tid(self,tid):
 		try:
-			return {'data':self.tasks[tid].toDict()}
+			return self.tasks[tid].toDict()
 		except KeyError:
-			return {'data':{'status':'err','message':f'tid {tid} ia not exist'}}
+			raise TidNotFoundError(f'tid {tid} ia not exist')
 	@property
-	def names(self):#plan to be replaced
-		return {'data':[i.name for i in self.tasks.values()]}
+	def names(self):
+		return {i.tid:i.name for i in self.tasks.values()}
 	@property
-	def progresses(self):
-		return {'data':{i.tid:i.name,[i.progress.finished,i.progress.total]}}
+	def progress(self):
+		return {i.tid:[i.progress.finished,i.progress.total] for i in self.tasks.values()}
+	@property
+	def main(self):
+		return {i.tid:{'name':i.name,'progress':[i.progress.finished,i.progress.total]} for i in self.tasks.values()}
