@@ -48,15 +48,9 @@ class TimeLength(object):
 		if abs(self.second)>=60:
 			self.minute+=self.second//60
 			self.second%=60
-		if abs(self.minute>=60):
+		if abs(self.minute)>=60:
 			self.hour+=self.minute//60
 			self.minute%=60
-		if self.second<0 and self.minute!=0:
-			self.second+=60
-			self.minute-=1
-		if self.minute<0 and self.hour!=0:
-			self.minute+=60
-			self.hour-=1
 	@property
 	def seconds(self):
 		return self.hour*3600+self.minute*60+self.second
